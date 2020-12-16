@@ -26,46 +26,50 @@ def main():
 
     # Make sure the directory is valid
     if not os.path.isdir(args.directory):
-        parser.error('Invalid search directory: ' + args.directory)
+        parser.error('Invalid directory: {}'.format(args.directory))
 
     # Make sure the algorithm is valid
     algorithm = args.algorithm.lower()
     if algorithm not in hashlib.algorithms_available:
         supported = textwrap.fill(', '.join(sorted(hashlib.algorithms_available)), 70)
-        parser.error('Invalid algorithm. List of supported algorithms:\n\n' + supported)
+        parser.error('Invalid algorithm. List of supported algorithms:\n\n {}'.format(supported))
 
-    # Create a dictionary of all file hashes
+    # Find duplicate files
+    print('Searching for duplicates. This may take a while...', flush=True)
     start_time = time.time()
-    hashes = defaultdict(list)
-    for root, dirs, files in os.walk(os.path.abspath(args.directory), topdown=True):
-        dirs[:] = [d for d in dirs if d not in args.exclude]
+    dupes = find_dupes(args.directory, args.algorithm, args.exclude)
+    duration = time.time() - start_time
 
-        for filename in files:
-            filename = os.path.join(root, filename)
-            try:
-                digest = create_hash(filename, algorithm)
-            except OSError as e:
-                print('Error reading file: {} ({})'.format(filename, e.strerror))
-            else:
-                hashes[digest].append(filename)
-
-    # Create a dictionary of dupes (hashes with multiple filenames)
-    dupes = {k: v for k, v in hashes.items() if len(v) > 1}
-
-    # Print the results
+    # Print results
     print()
     for digest, files in dupes.items():
         print(digest)
         for filename in files:
             print(' ', filename)
         print()
-
-    duration = time.time() - start_time
     print('Found {} duplicate hashes in {:.2f} seconds.'.format(len(dupes), duration))
 
 
-def create_hash(filename, algorithm):
-    """ Create a hash of the file using the specified algorithm. """
+def find_dupes(directory, algorithm, exclude):
+    """Create a dict of duplicate hashes (keys) and filenames (values). """
+    hashes = defaultdict(list)
+    for root, dirs, files in os.walk(os.path.abspath(directory), topdown=True):
+        dirs[:] = [d for d in dirs if d not in exclude]
+        for filename in files:
+            filename = os.path.join(root, filename)
+            try:
+                digest = get_hash(filename, algorithm)
+            except OSError as e:
+                print('Error reading file: {} ({})'.format(filename, e.strerror))
+            else:
+                hashes[digest].append(filename)
+
+    # Only return hashes with multiple files (dupes)
+    return {k: v for k, v in hashes.items() if len(v) > 1}
+
+
+def get_hash(filename, algorithm):
+    """ Calculate a file hash using the specified algorithm. """
     hasher = hashlib.new(algorithm)
     with open(filename, 'rb') as f:
         for chunk in iter(lambda: f.read(65536), b''):
