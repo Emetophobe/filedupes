@@ -36,9 +36,9 @@ def main():
 
     # Find duplicate files
     print('Searching for duplicates. This may take a while...', flush=True)
-    start_time = time.time()
+    start_time = time.perf_counter()
     dupes = find_dupes(args.directory, args.algorithm, args.exclude)
-    duration = time.time() - start_time
+    duration = time.perf_counter() - start_time
 
     # Print results
     print()
